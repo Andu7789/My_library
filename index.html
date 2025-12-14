@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Reading Library</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>📚 My Reading Library</h1>
+            <div class="header-actions">
+                <button id="importBtn" class="btn btn-secondary">Import XLS</button>
+                <button id="syncBtn" class="btn btn-primary">
+                    <span class="sync-icon">↻</span> Sync
+                </button>
+            </div>
+        </header>
+
+        <!-- Stats Dashboard -->
+        <section class="stats-section">
+            <div class="stat-card">
+                <div class="stat-number" id="totalBooks">0</div>
+                <div class="stat-label">Total Books</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="totalAuthors">0</div>
+                <div class="stat-label">Authors</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="thisYearCount">0</div>
+                <div class="stat-label">This Year</div>
+            </div>
+        </section>
+
+        <!-- Settings Panel -->
+        <div id="settingsPanel" class="settings-panel hidden">
+            <div class="settings-content">
+                <h3>GitHub Gist Settings</h3>
+                <p class="settings-description">
+                    Connect to GitHub Gist to sync your library across devices.
+                    <a href="https://github.com/settings/tokens" target="_blank">Create a token</a>
+                    with 'gist' scope.
+                </p>
+                <div class="form-group">
+                    <label for="githubToken">GitHub Personal Access Token</label>
+                    <input type="password" id="githubToken" placeholder="ghp_...">
+                </div>
+                <div class="form-group">
+                    <label for="gistId">Gist ID (leave empty to create new)</label>
+                    <input type="text" id="gistId" placeholder="abc123...">
+                </div>
+                <div class="settings-actions">
+                    <button id="saveSettings" class="btn btn-primary">Save & Sync</button>
+                    <button id="closeSettings" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Import Panel -->
+        <div id="importPanel" class="settings-panel hidden">
+            <div class="settings-content">
+                <h3>Import from Excel</h3>
+                <p class="settings-description">
+                    Upload your Excel file (.xls or .xlsx). Expected format: columns for Book Title, Author, and Year.
+                </p>
+                <div class="form-group">
+                    <input type="file" id="fileInput" accept=".xls,.xlsx" class="file-input">
+                    <label for="fileInput" class="file-label">
+                        <span class="file-icon">📁</span>
+                        <span id="fileName">Choose file...</span>
+                    </label>
+                </div>
+                <div id="importPreview" class="import-preview hidden">
+                    <h4>Preview (first 5 rows)</h4>
+                    <div id="previewContent"></div>
+                    <p class="preview-info">Total rows to import: <strong id="importCount">0</strong></p>
+                </div>
+                <div class="settings-actions">
+                    <button id="confirmImport" class="btn btn-primary hidden">Import Books</button>
+                    <button id="closeImport" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Book Section -->
+        <section class="add-book-section">
+            <h2>Add New Book</h2>
+            <form id="addBookForm" class="book-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="bookTitle">Book Title *</label>
+                        <input
+                            type="text"
+                            id="bookTitle"
+                            placeholder="Start typing to check if already read..."
+                            autocomplete="off"
+                            required
+                        >
+                        <div id="bookSuggestions" class="suggestions-dropdown hidden"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="bookAuthor">Author *</label>
+                        <input
+                            type="text"
+                            id="bookAuthor"
+                            placeholder="Author name..."
+                            autocomplete="off"
+                            required
+                        >
+                        <div id="authorSuggestions" class="suggestions-dropdown hidden"></div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="yearRead">Year Read *</label>
+                        <input
+                            type="number"
+                            id="yearRead"
+                            min="1900"
+                            max="2100"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="bookNotes">Notes (optional)</label>
+                        <input
+                            type="text"
+                            id="bookNotes"
+                            placeholder="Your thoughts..."
+                        >
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-large">Add Book</button>
+            </form>
+        </section>
+
+        <!-- Search & Filter -->
+        <section class="search-section">
+            <h2>My Books</h2>
+            <div class="search-controls">
+                <div class="search-box">
+                    <input
+                        type="text"
+                        id="searchInput"
+                        placeholder="Search books or authors..."
+                    >
+                    <span class="search-icon">🔍</span>
+                </div>
+                <div class="filter-controls">
+                    <select id="yearFilter" class="filter-select">
+                        <option value="">All Years</option>
+                    </select>
+                    <select id="sortBy" class="filter-select">
+                        <option value="recent">Recently Added</option>
+                        <option value="title">Title A-Z</option>
+                        <option value="author">Author A-Z</option>
+                        <option value="year-desc">Year (Newest)</option>
+                        <option value="year-asc">Year (Oldest)</option>
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        <!-- Books List -->
+        <section class="books-section">
+            <div id="booksList" class="books-grid">
+                <div class="empty-state">
+                    <div class="empty-icon">📖</div>
+                    <h3>No books yet</h3>
+                    <p>Add your first book or import from Excel to get started!</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Year Statistics Modal -->
+        <div id="yearStatsModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Reading Statistics by Year</h3>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div id="yearStatsContent" class="year-stats-content"></div>
+            </div>
+        </div>
+
+        <!-- Author Books Modal -->
+        <div id="authorBooksModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="authorModalTitle">Books by Author</h3>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div id="authorBooksContent" class="author-books-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast" class="toast hidden"></div>
+
+    <!-- Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
