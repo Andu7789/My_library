@@ -44,7 +44,7 @@ class ReadingLibrary {
     }
 
     // GitHub Gist Integration
-    async syncWithGist(action = 'pull') {
+    async syncWithGist(action = 'sync') {
         const { githubToken, gistId } = this.settings;
 
         if (!githubToken) {
@@ -58,12 +58,19 @@ class ReadingLibrary {
         syncBtn.disabled = true;
 
         try {
-            if (action === 'pull' && gistId) {
-                await this.pullFromGist();
-            } else {
+            if (action === 'push') {
+                // Force push local data to gist
                 await this.pushToGist();
+                this.showToast('Pushed to cloud successfully!', 'success');
+            } else if (action === 'pull') {
+                // Force pull from gist (overwrites local)
+                await this.pullFromGist();
+                this.showToast('Pulled from cloud successfully!', 'success');
+            } else {
+                // Smart sync: merge local and remote data
+                await this.smartSync();
+                this.showToast('Synced successfully!', 'success');
             }
-            this.showToast('Synced successfully!', 'success');
         } catch (error) {
             console.error('Sync error:', error);
             this.showToast('Sync failed: ' + error.message, 'error');
@@ -71,6 +78,81 @@ class ReadingLibrary {
             syncBtn.classList.remove('syncing');
             syncBtn.disabled = false;
         }
+    }
+
+    async smartSync() {
+        const { gistId } = this.settings;
+
+        if (!gistId) {
+            // No gist exists, create one with current data
+            await this.pushToGist();
+            return;
+        }
+
+        // Pull remote data first
+        const remoteBooks = await this.fetchGistData();
+
+        // Merge local and remote books
+        const mergedBooks = this.mergeBooks(this.books, remoteBooks);
+
+        // Update local storage with merged data
+        this.books = mergedBooks;
+        this.saveBooks();
+
+        // Push merged data back to gist
+        await this.pushToGist();
+    }
+
+    async fetchGistData() {
+        const response = await fetch(`https://api.github.com/gists/${this.settings.gistId}`, {
+            headers: {
+                'Authorization': `token ${this.settings.githubToken}`,
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch from Gist');
+        }
+
+        const gist = await response.json();
+        const content = gist.files['library.json']?.content;
+
+        return content ? JSON.parse(content) : [];
+    }
+
+    mergeBooks(localBooks, remoteBooks) {
+        // Create a map of all books by a composite key (title + author + year)
+        const bookMap = new Map();
+
+        // Helper to create unique key
+        const getKey = (book) =>
+            `${book.title.toLowerCase()}|${book.author.toLowerCase()}|${book.year}`;
+
+        // Add all remote books first
+        remoteBooks.forEach(book => {
+            bookMap.set(getKey(book), book);
+        });
+
+        // Add or update with local books (local takes precedence for same book)
+        localBooks.forEach(book => {
+            const key = getKey(book);
+            const existing = bookMap.get(key);
+
+            // If book exists, keep the one with more recent addedDate
+            if (existing) {
+                const localDate = new Date(book.addedDate || 0);
+                const remoteDate = new Date(existing.addedDate || 0);
+
+                if (localDate >= remoteDate) {
+                    bookMap.set(key, book);
+                }
+            } else {
+                bookMap.set(key, book);
+            }
+        });
+
+        return Array.from(bookMap.values());
     }
 
     async pullFromGist() {
@@ -454,7 +536,8 @@ class ReadingLibrary {
         this.closeSettings();
 
         if (this.settings.githubToken) {
-            this.syncWithGist(this.settings.gistId ? 'pull' : 'push');
+            // Use smart sync to merge data when connecting
+            this.syncWithGist('sync');
         }
     }
 
@@ -689,7 +772,8 @@ class ReadingLibrary {
             if (!this.settings.githubToken) {
                 this.openSettings();
             } else {
-                this.syncWithGist(this.settings.gistId ? 'pull' : 'push');
+                // Use smart sync by default (merges local and remote)
+                this.syncWithGist('sync');
             }
         });
 
