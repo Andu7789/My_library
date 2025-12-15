@@ -91,9 +91,11 @@ class ReadingLibrary {
 
         // Pull remote data first
         const remoteBooks = await this.fetchGistData();
+        console.log(`Smart Sync v2.0: Local=${this.books.length} books, Remote=${remoteBooks.length} books`);
 
         // Merge local and remote books
         const mergedBooks = this.mergeBooks(this.books, remoteBooks);
+        console.log(`Smart Sync v2.0: Merged=${mergedBooks.length} books`);
 
         // Update local storage with merged data
         this.books = mergedBooks;
