@@ -230,9 +230,9 @@ class ReadingLibrary {
         this.books.push(book);
         this.saveBooks();
 
-        // Auto-sync if configured
+        // Auto-sync if configured (use smart sync to avoid overwriting)
         if (this.settings.githubToken && this.settings.gistId) {
-            this.syncWithGist('push');
+            this.syncWithGist('sync');
         }
 
         return book;
@@ -242,9 +242,9 @@ class ReadingLibrary {
         this.books = this.books.filter(book => book.id !== id);
         this.saveBooks();
 
-        // Auto-sync if configured
+        // Auto-sync if configured (use smart sync to avoid overwriting)
         if (this.settings.githubToken && this.settings.gistId) {
-            this.syncWithGist('push');
+            this.syncWithGist('sync');
         }
     }
 
