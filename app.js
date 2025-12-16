@@ -660,6 +660,65 @@ class ReadingLibrary {
         document.getElementById('settingsPanel').classList.add('hidden');
     }
 
+    async testGitHubConnection() {
+        const statusDiv = document.getElementById('connectionStatus');
+        const token = document.getElementById('githubToken').value.trim();
+        const gistId = document.getElementById('gistId').value.trim();
+
+        if (!token) {
+            statusDiv.innerHTML = '<span style="color: #ef4444;">❌ Please enter a GitHub token</span>';
+            return;
+        }
+
+        statusDiv.innerHTML = '<span style="color: #3b82f6;">⏳ Testing connection...</span>';
+
+        try {
+            // Test 1: Check if token is valid
+            const userResponse = await fetch('https://api.github.com/user', {
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                }
+            });
+
+            if (!userResponse.ok) {
+                statusDiv.innerHTML = '<span style="color: #ef4444;">❌ Invalid token or no internet connection</span>';
+                return;
+            }
+
+            const userData = await userResponse.json();
+            console.log('[TEST] GitHub user:', userData.login);
+
+            // Test 2: If Gist ID provided, try to fetch it
+            if (gistId) {
+                const gistResponse = await fetch(`https://api.github.com/gists/${gistId}`, {
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+
+                if (!gistResponse.ok) {
+                    statusDiv.innerHTML = `<span style="color: #ef4444;">❌ Token valid but cannot access Gist ID: ${gistId}</span>`;
+                    return;
+                }
+
+                const gistData = await gistResponse.json();
+                const bookCount = gistData.files['library.json']?.content ?
+                    JSON.parse(gistData.files['library.json'].content).books?.length ||
+                    JSON.parse(gistData.files['library.json'].content).length : 0;
+
+                statusDiv.innerHTML = `<span style="color: #10b981;">✅ Connected as ${userData.login}. Gist has ${bookCount} books.</span>`;
+            } else {
+                statusDiv.innerHTML = `<span style="color: #10b981;">✅ Token valid. Connected as ${userData.login}.</span>`;
+            }
+
+        } catch (error) {
+            console.error('[TEST] Connection error:', error);
+            statusDiv.innerHTML = `<span style="color: #ef4444;">❌ Error: ${error.message}</span>`;
+        }
+    }
+
     saveSettingsForm() {
         this.settings.githubToken = document.getElementById('githubToken').value.trim();
         this.settings.gistId = document.getElementById('gistId').value.trim();
@@ -950,6 +1009,10 @@ class ReadingLibrary {
         });
 
         // Settings
+        document.getElementById('testConnection').addEventListener('click', async () => {
+            await this.testGitHubConnection();
+        });
+
         document.getElementById('saveSettings').addEventListener('click', () => {
             this.saveSettingsForm();
         });
