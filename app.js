@@ -282,11 +282,14 @@ class ReadingLibrary {
     }
 
     async deleteBook(id) {
+        console.log(`[DELETE DEBUG] Deleting book with id: ${id}. Books before: ${this.books.length}`);
         this.books = this.books.filter(book => book.id !== id);
+        console.log(`[DELETE DEBUG] Books after filter: ${this.books.length}`);
         this.saveBooks();
 
         // Auto-sync if configured (use smart sync to avoid overwriting)
         if (this.settings.githubToken && this.settings.gistId) {
+            console.log(`[DELETE DEBUG] Triggering sync after deletion...`);
             await this.syncWithGist('sync');
         }
     }
@@ -449,10 +452,17 @@ class ReadingLibrary {
     }
 
     async confirmDelete(id) {
+        console.log(`[DELETE DEBUG] confirmDelete called with id: ${id}`);
         const book = this.books.find(b => b.id === id);
+        console.log(`[DELETE DEBUG] Book found:`, book);
+
         if (book && confirm(`Delete "${book.title}"?`)) {
+            console.log(`[DELETE DEBUG] User confirmed deletion`);
             await this.deleteBook(id);
+            console.log(`[DELETE DEBUG] Delete completed`);
             this.showToast('Book deleted', 'success');
+        } else {
+            console.log(`[DELETE DEBUG] Deletion cancelled or book not found`);
         }
     }
 
