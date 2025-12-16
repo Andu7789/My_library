@@ -100,30 +100,37 @@ class ReadingLibrary {
 
     async smartSync() {
         const { gistId } = this.settings;
+        console.log(`[SYNC DEBUG] Starting smartSync. GistID: ${gistId ? 'exists' : 'missing'}, Local books: ${this.books.length}`);
 
         if (!gistId) {
             // No gist exists, create one with current data
+            console.log(`[SYNC DEBUG] No Gist ID found, creating new Gist...`);
             await this.pushToGist();
             return;
         }
 
         // Pull remote data first
+        console.log(`[SYNC DEBUG] Fetching remote data from Gist...`);
         const remoteBooks = await this.fetchGistData();
-        console.log(`Smart Sync v2.0: Local=${this.books.length} books, Remote=${remoteBooks.length} books`);
+        console.log(`[SYNC DEBUG] Smart Sync v2.0: Local=${this.books.length} books, Remote=${remoteBooks.length} books`);
 
         // Merge local and remote books
         const mergedBooks = this.mergeBooks(this.books, remoteBooks);
-        console.log(`Smart Sync v2.0: Merged=${mergedBooks.length} books`);
+        console.log(`[SYNC DEBUG] Smart Sync v2.0: Merged=${mergedBooks.length} books`);
 
         // Update local storage with merged data
         this.books = mergedBooks;
         this.saveBooks();
+        console.log(`[SYNC DEBUG] Saved merged books to localStorage`);
 
         // Push merged data back to gist
+        console.log(`[SYNC DEBUG] Pushing merged data back to Gist...`);
         await this.pushToGist();
+        console.log(`[SYNC DEBUG] Sync complete!`);
     }
 
     async fetchGistData() {
+        console.log(`[SYNC DEBUG] Fetching Gist ID: ${this.settings.gistId}`);
         const response = await fetch(`https://api.github.com/gists/${this.settings.gistId}`, {
             headers: {
                 'Authorization': `token ${this.settings.githubToken}`,
@@ -132,11 +139,15 @@ class ReadingLibrary {
         });
 
         if (!response.ok) {
-            throw new Error('Failed to fetch from Gist');
+            console.error(`[SYNC DEBUG] Failed to fetch Gist. Status: ${response.status} ${response.statusText}`);
+            const errorText = await response.text();
+            console.error(`[SYNC DEBUG] Error details:`, errorText);
+            throw new Error(`Failed to fetch from Gist: ${response.status} ${response.statusText}`);
         }
 
         const gist = await response.json();
         const content = gist.files['library.json']?.content;
+        console.log(`[SYNC DEBUG] Fetched Gist successfully. Has library.json: ${!!content}`);
 
         return content ? JSON.parse(content) : [];
     }
@@ -197,6 +208,7 @@ class ReadingLibrary {
     }
 
     async pushToGist() {
+        console.log(`[SYNC DEBUG] Pushing ${this.books.length} books to Gist...`);
         const gistData = {
             description: 'My Reading Library Data',
             public: false,
@@ -212,6 +224,7 @@ class ReadingLibrary {
             : 'https://api.github.com/gists';
 
         const method = this.settings.gistId ? 'PATCH' : 'POST';
+        console.log(`[SYNC DEBUG] Using ${method} to ${url}`);
 
         const response = await fetch(url, {
             method: method,
@@ -224,20 +237,26 @@ class ReadingLibrary {
         });
 
         if (!response.ok) {
-            throw new Error('Failed to push to Gist');
+            console.error(`[SYNC DEBUG] Failed to push to Gist. Status: ${response.status} ${response.statusText}`);
+            const errorText = await response.text();
+            console.error(`[SYNC DEBUG] Error details:`, errorText);
+            throw new Error(`Failed to push to Gist: ${response.status} ${response.statusText}`);
         }
 
         const gist = await response.json();
+        console.log(`[SYNC DEBUG] Successfully pushed to Gist. ID: ${gist.id}`);
 
         if (!this.settings.gistId) {
             this.settings.gistId = gist.id;
             this.saveSettings();
+            console.log(`[SYNC DEBUG] New Gist created with ID: ${gist.id}`);
             this.showToast(`Gist created! ID: ${gist.id}`, 'success');
         }
     }
 
     // Book Management
     async addBook(title, author, year, notes = '') {
+        console.log(`[SYNC DEBUG] Adding book: "${title}" by ${author}`);
         const book = {
             id: Date.now().toString(),
             title: title.trim(),
@@ -249,10 +268,14 @@ class ReadingLibrary {
 
         this.books.push(book);
         this.saveBooks();
+        console.log(`[SYNC DEBUG] Book added to local storage. Total books: ${this.books.length}`);
 
         // Auto-sync if configured (use smart sync to avoid overwriting)
         if (this.settings.githubToken && this.settings.gistId) {
+            console.log(`[SYNC DEBUG] Token and Gist ID found, triggering auto-sync...`);
             await this.syncWithGist('sync');
+        } else {
+            console.log(`[SYNC DEBUG] No auto-sync: Token=${!!this.settings.githubToken}, GistID=${!!this.settings.gistId}`);
         }
 
         return book;
