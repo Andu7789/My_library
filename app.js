@@ -103,7 +103,18 @@ class ReadingLibrary {
             }
         } catch (error) {
             console.error('Sync error:', error);
-            this.showToast('Sync failed: ' + error.message, 'error');
+
+            // Show detailed error message to help with troubleshooting
+            let errorMsg = error.message;
+            if (errorMsg.includes('403')) {
+                errorMsg = '403 Forbidden - Token may not have write permission. Try creating a new token at github.com/settings/tokens with "gist" scope.';
+            } else if (errorMsg.includes('401')) {
+                errorMsg = '401 Unauthorized - Invalid token. Check your GitHub token.';
+            } else if (errorMsg.includes('404')) {
+                errorMsg = '404 Not Found - Gist ID not found. Check your Gist ID.';
+            }
+
+            this.showToast('Sync failed: ' + errorMsg, 'error');
         } finally {
             this.syncInProgress = false;
             syncBtn.classList.remove('syncing');
