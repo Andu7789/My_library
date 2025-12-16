@@ -20,6 +20,19 @@ class ReadingLibrary {
         this.setupEventListeners();
         this.updateUI();
         this.setCurrentYear();
+        this.updateGistIdDisplay();
+    }
+
+    updateGistIdDisplay() {
+        const display = document.getElementById('gistIdDisplay');
+        if (this.settings.gistId) {
+            const shortId = this.settings.gistId.substring(0, 8);
+            display.textContent = `Gist: ${shortId}...`;
+            display.style.display = 'inline';
+        } else {
+            display.textContent = 'Not synced';
+            display.style.display = 'inline';
+        }
     }
 
     // Data Management
@@ -645,6 +658,7 @@ class ReadingLibrary {
         this.settings.githubToken = document.getElementById('githubToken').value.trim();
         this.settings.gistId = document.getElementById('gistId').value.trim();
         this.saveSettings();
+        this.updateGistIdDisplay();
         this.closeSettings();
 
         if (this.settings.githubToken) {
@@ -915,6 +929,18 @@ class ReadingLibrary {
         // Settings button (new dedicated button)
         document.getElementById('settingsBtn').addEventListener('click', () => {
             this.openSettings();
+        });
+
+        // Gist ID display - click to copy
+        document.getElementById('gistIdDisplay').addEventListener('click', () => {
+            if (this.settings.gistId) {
+                navigator.clipboard.writeText(this.settings.gistId).then(() => {
+                    this.showToast(`Gist ID copied: ${this.settings.gistId}`, 'success');
+                }).catch(() => {
+                    // Fallback if clipboard API fails
+                    prompt('Copy this Gist ID:', this.settings.gistId);
+                });
+            }
         });
 
         // Settings
