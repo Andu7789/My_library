@@ -219,6 +219,12 @@ class ReadingLibrary {
 
         // Add or update with local books (local takes precedence for same book)
         localBooks.forEach(book => {
+            // Skip books that have been deleted (either locally or remotely)
+            if (this.deletedBookIds.includes(book.id)) {
+                console.log(`[MERGE DEBUG] Skipping deleted book from local: ${book.title}`);
+                return;
+            }
+
             const key = getKey(book);
             const existing = bookMap.get(key);
 
