@@ -119,16 +119,21 @@ class ReadingLibrary {
         // Pull remote data first
         console.log(`[SYNC DEBUG] Fetching remote data from Gist...`);
         const remoteData = await this.fetchGistData();
-        console.log(`[SYNC DEBUG] Smart Sync v2.0: Local=${this.books.length} books, Remote=${remoteData.books.length} books`);
-        console.log(`[SYNC DEBUG] Deleted IDs: Local=${this.deletedBookIds.length}, Remote=${remoteData.deletedBookIds.length}`);
+
+        // Ensure remoteData has the correct structure
+        const remoteBooks = remoteData.books || [];
+        const remoteDeletedIds = remoteData.deletedBookIds || [];
+
+        console.log(`[SYNC DEBUG] Smart Sync v2.0: Local=${this.books.length} books, Remote=${remoteBooks.length} books`);
+        console.log(`[SYNC DEBUG] Deleted IDs: Local=${this.deletedBookIds.length}, Remote=${remoteDeletedIds.length}`);
 
         // Merge deleted IDs from both devices
-        const mergedDeletedIds = [...new Set([...this.deletedBookIds, ...remoteData.deletedBookIds])];
+        const mergedDeletedIds = [...new Set([...this.deletedBookIds, ...remoteDeletedIds])];
         console.log(`[SYNC DEBUG] Merged deleted IDs: ${mergedDeletedIds.length}`);
         this.deletedBookIds = mergedDeletedIds;
 
         // Merge local and remote books
-        const mergedBooks = this.mergeBooks(this.books, remoteData.books);
+        const mergedBooks = this.mergeBooks(this.books, remoteBooks);
         console.log(`[SYNC DEBUG] Smart Sync v2.0: Merged=${mergedBooks.length} books`);
 
         // Update local storage with merged data
