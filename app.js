@@ -843,6 +843,11 @@ class ReadingLibrary {
             this.openImport();
         });
 
+        // Settings button (new dedicated button)
+        document.getElementById('settingsBtn').addEventListener('click', () => {
+            this.openSettings();
+        });
+
         // Settings
         document.getElementById('saveSettings').addEventListener('click', () => {
             this.saveSettingsForm();
