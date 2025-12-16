@@ -2,6 +2,7 @@
 class ReadingLibrary {
     constructor() {
         this.books = [];
+        this.deletedBookIds = []; // Track deleted book IDs to prevent resurrection during merge
         this.settings = {
             githubToken: '',
             gistId: ''
@@ -38,10 +39,16 @@ class ReadingLibrary {
         if (saved) {
             this.books = JSON.parse(saved);
         }
+
+        const deletedIds = localStorage.getItem('deletedBookIds');
+        if (deletedIds) {
+            this.deletedBookIds = JSON.parse(deletedIds);
+        }
     }
 
     saveBooks() {
         localStorage.setItem('libraryBooks', JSON.stringify(this.books));
+        localStorage.setItem('deletedBookIds', JSON.stringify(this.deletedBookIds));
         this.updateUI();
     }
 
@@ -160,9 +167,14 @@ class ReadingLibrary {
         const getKey = (book) =>
             `${book.title.toLowerCase()}|${book.author.toLowerCase()}|${book.year}`;
 
-        // Add all remote books first
+        // Add all remote books first (excluding deleted ones)
         remoteBooks.forEach(book => {
-            bookMap.set(getKey(book), book);
+            // Skip books that have been deleted locally
+            if (!this.deletedBookIds.includes(book.id)) {
+                bookMap.set(getKey(book), book);
+            } else {
+                console.log(`[MERGE DEBUG] Skipping deleted book from remote: ${book.title}`);
+            }
         });
 
         // Add or update with local books (local takes precedence for same book)
@@ -283,14 +295,21 @@ class ReadingLibrary {
 
     async deleteBook(id) {
         console.log(`[DELETE DEBUG] Deleting book with id: ${id}. Books before: ${this.books.length}`);
+
+        // Track this deletion to prevent the book from being restored during merge
+        if (!this.deletedBookIds.includes(id)) {
+            this.deletedBookIds.push(id);
+            console.log(`[DELETE DEBUG] Added ${id} to deleted list. Total deleted: ${this.deletedBookIds.length}`);
+        }
+
         this.books = this.books.filter(book => book.id !== id);
         console.log(`[DELETE DEBUG] Books after filter: ${this.books.length}`);
         this.saveBooks();
 
-        // For deletions, push directly to Gist (don't merge, as that would restore the deleted book)
+        // Now use smart sync - the merge will filter out deleted books
         if (this.settings.githubToken && this.settings.gistId) {
-            console.log(`[DELETE DEBUG] Pushing deletion to cloud (force push)...`);
-            await this.syncWithGist('push');
+            console.log(`[DELETE DEBUG] Syncing deletion with smart merge...`);
+            await this.syncWithGist('sync');
         }
     }
 
