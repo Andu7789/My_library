@@ -287,10 +287,10 @@ class ReadingLibrary {
         console.log(`[DELETE DEBUG] Books after filter: ${this.books.length}`);
         this.saveBooks();
 
-        // Auto-sync if configured (use smart sync to avoid overwriting)
+        // For deletions, push directly to Gist (don't merge, as that would restore the deleted book)
         if (this.settings.githubToken && this.settings.gistId) {
-            console.log(`[DELETE DEBUG] Triggering sync after deletion...`);
-            await this.syncWithGist('sync');
+            console.log(`[DELETE DEBUG] Pushing deletion to cloud (force push)...`);
+            await this.syncWithGist('push');
         }
     }
 
