@@ -107,7 +107,7 @@ class ReadingLibrary {
 
     async smartSync() {
         const { gistId } = this.settings;
-        console.log(`[SYNC DEBUG] Starting smartSync. GistID: ${gistId ? 'exists' : 'missing'}, Local books: ${this.books.length}`);
+        console.log(`[SYNC DEBUG] Starting smartSync. GistID: ${gistId ? 'exists' : 'missing'}, Local books: ${this.books.length}, Local deleted: ${this.deletedBookIds.length}`);
 
         if (!gistId) {
             // No gist exists, create one with current data
@@ -118,11 +118,17 @@ class ReadingLibrary {
 
         // Pull remote data first
         console.log(`[SYNC DEBUG] Fetching remote data from Gist...`);
-        const remoteBooks = await this.fetchGistData();
-        console.log(`[SYNC DEBUG] Smart Sync v2.0: Local=${this.books.length} books, Remote=${remoteBooks.length} books`);
+        const remoteData = await this.fetchGistData();
+        console.log(`[SYNC DEBUG] Smart Sync v2.0: Local=${this.books.length} books, Remote=${remoteData.books.length} books`);
+        console.log(`[SYNC DEBUG] Deleted IDs: Local=${this.deletedBookIds.length}, Remote=${remoteData.deletedBookIds.length}`);
+
+        // Merge deleted IDs from both devices
+        const mergedDeletedIds = [...new Set([...this.deletedBookIds, ...remoteData.deletedBookIds])];
+        console.log(`[SYNC DEBUG] Merged deleted IDs: ${mergedDeletedIds.length}`);
+        this.deletedBookIds = mergedDeletedIds;
 
         // Merge local and remote books
-        const mergedBooks = this.mergeBooks(this.books, remoteBooks);
+        const mergedBooks = this.mergeBooks(this.books, remoteData.books);
         console.log(`[SYNC DEBUG] Smart Sync v2.0: Merged=${mergedBooks.length} books`);
 
         // Update local storage with merged data
@@ -156,7 +162,23 @@ class ReadingLibrary {
         const content = gist.files['library.json']?.content;
         console.log(`[SYNC DEBUG] Fetched Gist successfully. Has library.json: ${!!content}`);
 
-        return content ? JSON.parse(content) : [];
+        if (!content) {
+            return { books: [], deletedBookIds: [] };
+        }
+
+        const data = JSON.parse(content);
+
+        // Handle old format (just array of books) and new format (object with books and deletedBookIds)
+        if (Array.isArray(data)) {
+            console.log(`[SYNC DEBUG] Old format detected (array), converting...`);
+            return { books: data, deletedBookIds: [] };
+        } else {
+            console.log(`[SYNC DEBUG] New format: ${data.books?.length || 0} books, ${data.deletedBookIds?.length || 0} deleted IDs`);
+            return {
+                books: data.books || [],
+                deletedBookIds: data.deletedBookIds || []
+            };
+        }
     }
 
     mergeBooks(localBooks, remoteBooks) {
@@ -214,19 +236,32 @@ class ReadingLibrary {
         const content = gist.files['library.json']?.content;
 
         if (content) {
-            this.books = JSON.parse(content);
+            const data = JSON.parse(content);
+
+            // Handle old format (just array) and new format (object with books and deletedBookIds)
+            if (Array.isArray(data)) {
+                this.books = data;
+                this.deletedBookIds = [];
+            } else {
+                this.books = data.books || [];
+                this.deletedBookIds = data.deletedBookIds || [];
+            }
+
             this.saveBooks();
         }
     }
 
     async pushToGist() {
-        console.log(`[SYNC DEBUG] Pushing ${this.books.length} books to Gist...`);
+        console.log(`[SYNC DEBUG] Pushing ${this.books.length} books and ${this.deletedBookIds.length} deleted IDs to Gist...`);
         const gistData = {
             description: 'My Reading Library Data',
             public: false,
             files: {
                 'library.json': {
-                    content: JSON.stringify(this.books, null, 2)
+                    content: JSON.stringify({
+                        books: this.books,
+                        deletedBookIds: this.deletedBookIds
+                    }, null, 2)
                 }
             }
         };
