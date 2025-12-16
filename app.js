@@ -7,6 +7,8 @@ class ReadingLibrary {
             gistId: ''
         };
         this.importData = null;
+        this.syncInProgress = false;
+        this.pendingSync = false;
 
         this.init();
     }
@@ -53,6 +55,14 @@ class ReadingLibrary {
             return;
         }
 
+        // Queue mechanism to prevent concurrent syncs
+        if (this.syncInProgress) {
+            this.pendingSync = true;
+            console.log('Sync already in progress, queuing this request');
+            return;
+        }
+
+        this.syncInProgress = true;
         const syncBtn = document.getElementById('syncBtn');
         syncBtn.classList.add('syncing');
         syncBtn.disabled = true;
@@ -75,8 +85,16 @@ class ReadingLibrary {
             console.error('Sync error:', error);
             this.showToast('Sync failed: ' + error.message, 'error');
         } finally {
+            this.syncInProgress = false;
             syncBtn.classList.remove('syncing');
             syncBtn.disabled = false;
+
+            // If there was a pending sync request, execute it now
+            if (this.pendingSync) {
+                this.pendingSync = false;
+                console.log('Executing pending sync request');
+                await this.syncWithGist(action);
+            }
         }
     }
 
@@ -219,7 +237,7 @@ class ReadingLibrary {
     }
 
     // Book Management
-    addBook(title, author, year, notes = '') {
+    async addBook(title, author, year, notes = '') {
         const book = {
             id: Date.now().toString(),
             title: title.trim(),
@@ -234,19 +252,19 @@ class ReadingLibrary {
 
         // Auto-sync if configured (use smart sync to avoid overwriting)
         if (this.settings.githubToken && this.settings.gistId) {
-            this.syncWithGist('sync');
+            await this.syncWithGist('sync');
         }
 
         return book;
     }
 
-    deleteBook(id) {
+    async deleteBook(id) {
         this.books = this.books.filter(book => book.id !== id);
         this.saveBooks();
 
         // Auto-sync if configured (use smart sync to avoid overwriting)
         if (this.settings.githubToken && this.settings.gistId) {
-            this.syncWithGist('sync');
+            await this.syncWithGist('sync');
         }
     }
 
@@ -407,10 +425,10 @@ class ReadingLibrary {
         `).join('');
     }
 
-    confirmDelete(id) {
+    async confirmDelete(id) {
         const book = this.books.find(b => b.id === id);
         if (book && confirm(`Delete "${book.title}"?`)) {
-            this.deleteBook(id);
+            await this.deleteBook(id);
             this.showToast('Book deleted', 'success');
         }
     }
@@ -659,7 +677,7 @@ class ReadingLibrary {
         document.getElementById('confirmImport').classList.remove('hidden');
     }
 
-    confirmImportBooks() {
+    async confirmImportBooks() {
         if (!this.importData || this.importData.length === 0) {
             this.showToast('No data to import', 'error');
             return;
@@ -668,17 +686,35 @@ class ReadingLibrary {
         let imported = 0;
         let skipped = 0;
 
-        this.importData.forEach(book => {
+        // Import all books first (without syncing)
+        for (const book of this.importData) {
             // Check for duplicates
             const duplicates = this.findDuplicates(book.title);
             if (duplicates.length > 0) {
                 skipped++;
-                return;
+                continue;
             }
 
-            this.addBook(book.title, book.author, book.year);
+            // Add book directly without auto-sync
+            const newBook = {
+                id: Date.now().toString() + Math.random().toString(36).substring(2, 11),
+                title: book.title.trim(),
+                author: book.author.trim(),
+                year: parseInt(book.year),
+                notes: '',
+                addedDate: new Date().toISOString()
+            };
+            this.books.push(newBook);
             imported++;
-        });
+        }
+
+        // Save all at once
+        this.saveBooks();
+
+        // Now sync once after all imports
+        if (this.settings.githubToken && this.settings.gistId) {
+            await this.syncWithGist('sync');
+        }
 
         this.closeImport();
         this.showToast(`Imported ${imported} books${skipped > 0 ? `, skipped ${skipped} duplicates` : ''}`, 'success');
@@ -713,7 +749,7 @@ class ReadingLibrary {
     // Event Listeners Setup
     setupEventListeners() {
         // Form submission
-        document.getElementById('addBookForm').addEventListener('submit', (e) => {
+        document.getElementById('addBookForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
             const title = document.getElementById('bookTitle').value.trim();
@@ -726,7 +762,7 @@ class ReadingLibrary {
                 return;
             }
 
-            this.addBook(title, author, year, notes);
+            await this.addBook(title, author, year, notes);
 
             // Reset form
             e.target.reset();
