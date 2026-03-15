@@ -163,6 +163,7 @@ class ReadingLibrary {
         // Update local storage with merged data
         this.books = mergedBooks;
         this.saveBooks();
+        this.renderBooks();
         console.log(`[SYNC DEBUG] Saved merged books to localStorage`);
 
         // Push merged data back to gist
@@ -283,6 +284,7 @@ class ReadingLibrary {
             }
 
             this.saveBooks();
+            this.renderBooks();
         }
     }
 
