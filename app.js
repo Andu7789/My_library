@@ -10,6 +10,7 @@ class ReadingLibrary {
         this.importData = null;
         this.syncInProgress = false;
         this.pendingSync = false;
+        this.activeAuthorFilter = '';
 
         this.init();
     }
@@ -508,6 +509,13 @@ class ReadingLibrary {
             filteredBooks = filteredBooks.filter(book => book.year === parseInt(yearFilter));
         }
 
+        if (this.activeAuthorFilter) {
+            filteredBooks = filteredBooks.filter(book => book.author === this.activeAuthorFilter);
+            document.getElementById('clearAuthorFilter').classList.remove('hidden');
+        } else {
+            document.getElementById('clearAuthorFilter').classList.add('hidden');
+        }
+
         filteredBooks = this.sortBooks(filteredBooks, sortBy);
 
         const booksList = document.getElementById('booksList');
@@ -661,6 +669,30 @@ class ReadingLibrary {
     filterByYear(year) {
         this.closeModal('yearStatsModal');
         document.getElementById('yearFilter').value = year;
+        this.renderBooks();
+    }
+
+    showAuthorStats() {
+        const modal = document.getElementById('authorStatsModal');
+        const content = document.getElementById('authorStatsContent');
+
+        const authorStats = [...new Set(this.books.map(b => b.author))]
+            .map(author => ({ author, count: this.books.filter(b => b.author === author).length }))
+            .sort((a, b) => b.count - a.count);
+
+        content.innerHTML = authorStats.map(({ author, count }) => `
+            <div class="year-stat-item" onclick="library.filterByAuthor('${this.escapeHtml(author)}')" style="cursor:pointer;">
+                <div class="year-stat-year" style="font-size:0.95rem;">${this.escapeHtml(author)}</div>
+                <div class="year-stat-count">${count} book${count > 1 ? 's' : ''}</div>
+            </div>
+        `).join('');
+
+        modal.classList.remove('hidden');
+    }
+
+    filterByAuthor(author) {
+        this.closeModal('authorStatsModal');
+        this.activeAuthorFilter = author;
         this.renderBooks();
     }
 
@@ -1073,6 +1105,15 @@ class ReadingLibrary {
         // Stats card click
         document.getElementById('thisYearCount').parentElement.addEventListener('click', () => {
             this.showYearStats();
+        });
+
+        document.getElementById('totalAuthors').parentElement.addEventListener('click', () => {
+            this.showAuthorStats();
+        });
+
+        document.getElementById('clearAuthorFilter').addEventListener('click', () => {
+            this.activeAuthorFilter = '';
+            this.renderBooks();
         });
 
         // Close settings/import panels on background click

@@ -161,6 +161,7 @@
                     <span class="search-icon">🔍</span>
                 </div>
                 <div class="filter-controls">
+                    <button id="clearAuthorFilter" class="btn btn-secondary btn-small hidden">✕ Author</button>
                     <select id="yearFilter" class="filter-select">
                         <option value="">All Years</option>
                     </select>
@@ -194,6 +195,17 @@
                     <button class="modal-close">&times;</button>
                 </div>
                 <div id="yearStatsContent" class="year-stats-content"></div>
+            </div>
+        </div>
+
+        <!-- Author Statistics Modal -->
+        <div id="authorStatsModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Books by Author</h3>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div id="authorStatsContent" class="year-stats-content"></div>
             </div>
         </div>
 
