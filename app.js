@@ -649,13 +649,19 @@ class ReadingLibrary {
         const content = document.getElementById('yearStatsContent');
 
         content.innerHTML = stats.map(({ year, count }) => `
-            <div class="year-stat-item">
+            <div class="year-stat-item" onclick="library.filterByYear(${year})" style="cursor:pointer;">
                 <div class="year-stat-year">${year}</div>
                 <div class="year-stat-count">${count} book${count > 1 ? 's' : ''}</div>
             </div>
         `).join('');
 
         modal.classList.remove('hidden');
+    }
+
+    filterByYear(year) {
+        this.closeModal('yearStatsModal');
+        document.getElementById('yearFilter').value = year;
+        this.renderBooks();
     }
 
     closeModal(modalId) {
