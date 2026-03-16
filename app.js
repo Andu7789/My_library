@@ -630,82 +630,51 @@ class ReadingLibrary {
     }
 
     // Modals
-    showAuthorBooks(author) {
-        const books = this.getBooksByAuthor(author);
+    async showAuthorBooks(author) {
+        const readBooks = this.getBooksByAuthor(author);
         const modal = document.getElementById('authorBooksModal');
         const title = document.getElementById('authorModalTitle');
-        const content = document.getElementById('authorBooksContent');
+        const readContent = document.getElementById('authorBooksRead');
+        const unreadContent = document.getElementById('authorBooksUnread');
 
-        title.textContent = `Books by ${author} (${books.length})`;
+        title.textContent = author;
+        modal.classList.remove('hidden');
 
-        const sortedBooks = this.sortBooks(books, 'year-desc');
-
-        let html = '';
-
-        if (sortedBooks.length > 0) {
-            html += `<div class="author-section-header">Read</div>`;
-            html += sortedBooks.map(book => `
+        // Render read books immediately
+        const sortedRead = this.sortBooks(readBooks, 'year-desc');
+        readContent.innerHTML = sortedRead.length
+            ? sortedRead.map(book => `
                 <div class="author-book-item">
                     <div class="author-book-title">${this.escapeHtml(book.title)}</div>
                     <div class="author-book-year">Read in ${book.year}</div>
-                    ${book.notes ? `<div class="book-notes" style="margin-top: 8px;">"${this.escapeHtml(book.notes)}"</div>` : ''}
-                </div>
-            `).join('');
-        }
+                    ${book.notes ? `<div class="book-notes">"${this.escapeHtml(book.notes)}"</div>` : ''}
+                </div>`).join('')
+            : '<div class="author-book-empty">No books recorded yet.</div>';
 
-        html += `
-            <div class="author-section-header unread-header">
-                Not Yet Read
-                <span class="fetch-status" id="fetchStatus">Loading from Open Library...</span>
-            </div>
-            <div id="unreadBooksContent">
-                <div class="fetch-loading">Searching for more books by this author...</div>
-            </div>
-        `;
-
-        content.innerHTML = html;
-        modal.classList.remove('hidden');
-
-        this.fetchUnreadBooks(author, books);
-    }
-
-    async fetchUnreadBooks(author, readBooks) {
-        const readTitles = new Set(readBooks.map(b => b.title.toLowerCase().trim()));
-        const container = document.getElementById('unreadBooksContent');
-        const statusEl = document.getElementById('fetchStatus');
+        // Show loading state for unread
+        unreadContent.innerHTML = '<div class="author-books-loading"><span class="loading-spinner"></span> Fetching from Open Library...</div>';
 
         try {
+            const readTitles = new Set(readBooks.map(b => b.title.toLowerCase().trim()));
             const query = encodeURIComponent(author);
-            const response = await fetch(
-                `https://openlibrary.org/search.json?author=${query}&fields=title,first_publish_year,edition_count&limit=100&sort=editions`
-            );
-
-            if (!response.ok) throw new Error('Network error');
-
-            const data = await response.json();
+            const res = await fetch(`https://openlibrary.org/search.json?author=${query}&fields=title,first_publish_year,edition_count&limit=100&sort=editions`);
+            if (!res.ok) throw new Error('API error');
+            const data = await res.json();
 
             const unread = (data.docs || [])
-                .filter(doc => doc.title && !readTitles.has(doc.title.toLowerCase().trim()))
+                .filter(book => book.title && !readTitles.has(book.title.toLowerCase().trim()))
                 .sort((a, b) => (b.edition_count || 0) - (a.edition_count || 0))
                 .slice(0, 20);
 
-            if (statusEl) statusEl.remove();
-
-            if (unread.length === 0) {
-                container.innerHTML = `<div class="fetch-empty">No additional books found on Open Library.</div>`;
-                return;
-            }
-
-            container.innerHTML = unread.map(book => `
-                <div class="author-book-item unread">
-                    <div class="author-book-title">${this.escapeHtml(book.title)}</div>
-                    ${book.first_publish_year ? `<div class="author-book-year">First published ${book.first_publish_year}</div>` : ''}
-                </div>
-            `).join('');
-
-        } catch (err) {
-            if (statusEl) statusEl.remove();
-            container.innerHTML = `<div class="fetch-empty">Could not load books — check your internet connection.</div>`;
+            unreadContent.innerHTML = unread.length
+                ? unread.map(book => `
+                    <div class="author-book-item author-book-item-unread">
+                        <div class="author-book-title">${this.escapeHtml(book.title)}</div>
+                        ${book.first_publish_year ? `<div class="author-book-year">First published ${book.first_publish_year}</div>` : ''}
+                    </div>`).join('')
+                : '<div class="author-book-empty">No additional books found on Open Library.</div>';
+        } catch (e) {
+            unreadContent.innerHTML = '<div class="author-book-empty">Could not load books — check your connection.</div>';
         }
     }
 
