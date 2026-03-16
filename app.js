@@ -587,7 +587,7 @@ class ReadingLibrary {
         html += matches.map(book => {
             const regex = new RegExp(`(${this.escapeRegex(query)})`, 'gi');
             const highlighted = book.title.replace(regex, '<span class="suggestion-match">$1</span>');
-            return `<div class="suggestion-item" onclick="library.selectBookSuggestion('${this.escapeHtml(book.title)}', '${this.escapeHtml(book.author)}')">
+            return `<div class="suggestion-item" data-title="${this.escapeHtml(book.title)}" data-author="${this.escapeHtml(book.author)}" onclick="library.selectBookSuggestion(this.dataset.title, this.dataset.author)">
                 ${highlighted} <span style="color: var(--text-muted)">by ${this.escapeHtml(book.author)}</span>
             </div>`;
         }).join('');
