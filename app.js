@@ -739,7 +739,7 @@ class ReadingLibrary {
             .sort((a, b) => b.count - a.count);
 
         content.innerHTML = authorStats.map(({ author, count }) => `
-            <div class="year-stat-item" data-author="${this.escapeHtml(author)}" onclick="library.filterByAuthor(this.dataset.author)" style="cursor:pointer;">
+            <div class="year-stat-item" data-author="${this.escapeHtml(author)}" onclick="library.closeModal('authorStatsModal'); library.showAuthorBooks(this.dataset.author)" style="cursor:pointer;">
                 <div class="year-stat-year" style="font-size:0.95rem;">${this.escapeHtml(author)}</div>
                 <div class="year-stat-count">${count} book${count > 1 ? 's' : ''}</div>
             </div>
