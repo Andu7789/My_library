@@ -534,7 +534,7 @@ class ReadingLibrary {
         booksList.innerHTML = filteredBooks.map(book => `
             <div class="book-card" data-id="${book.id}">
                 <div class="book-title">${this.escapeHtml(book.title)}</div>
-                <div class="book-author" onclick="library.showAuthorBooks('${this.escapeHtml(book.author)}')">
+                <div class="book-author" data-author="${this.escapeHtml(book.author)}" onclick="library.showAuthorBooks(this.dataset.author)">
                     ${this.escapeHtml(book.author)}
                 </div>
                 <div class="book-meta">
@@ -587,7 +587,7 @@ class ReadingLibrary {
         html += matches.map(book => {
             const regex = new RegExp(`(${this.escapeRegex(query)})`, 'gi');
             const highlighted = book.title.replace(regex, '<span class="suggestion-match">$1</span>');
-            return `<div class="suggestion-item" onclick="library.selectBookSuggestion('${this.escapeHtml(book.title)}', '${this.escapeHtml(book.author)}')">
+            return `<div class="suggestion-item" data-title="${this.escapeHtml(book.title)}" data-author="${this.escapeHtml(book.author)}" onclick="library.selectBookSuggestion(this.dataset.title, this.dataset.author)">
                 ${highlighted} <span style="color: var(--text-muted)">by ${this.escapeHtml(book.author)}</span>
             </div>`;
         }).join('');
@@ -615,7 +615,7 @@ class ReadingLibrary {
             const regex = new RegExp(`(${this.escapeRegex(query)})`, 'gi');
             const highlighted = author.replace(regex, '<span class="suggestion-match">$1</span>');
             const bookCount = this.getBooksByAuthor(author).length;
-            return `<div class="suggestion-item" onclick="library.selectAuthorSuggestion('${this.escapeHtml(author)}')">
+            return `<div class="suggestion-item" data-author="${this.escapeHtml(author)}" onclick="library.selectAuthorSuggestion(this.dataset.author)">
                 ${highlighted} <span style="color: var(--text-muted)">(${bookCount} book${bookCount > 1 ? 's' : ''})</span>
             </div>`;
         }).join('');
@@ -630,25 +630,52 @@ class ReadingLibrary {
     }
 
     // Modals
-    showAuthorBooks(author) {
-        const books = this.getBooksByAuthor(author);
+    async showAuthorBooks(author) {
+        const readBooks = this.getBooksByAuthor(author);
         const modal = document.getElementById('authorBooksModal');
         const title = document.getElementById('authorModalTitle');
-        const content = document.getElementById('authorBooksContent');
+        const readContent = document.getElementById('authorBooksRead');
+        const unreadContent = document.getElementById('authorBooksUnread');
 
-        title.textContent = `Books by ${author} (${books.length})`;
-
-        const sortedBooks = this.sortBooks(books, 'year-desc');
-
-        content.innerHTML = sortedBooks.map(book => `
-            <div class="author-book-item">
-                <div class="author-book-title">${this.escapeHtml(book.title)}</div>
-                <div class="author-book-year">Read in ${book.year}</div>
-                ${book.notes ? `<div class="book-notes" style="margin-top: 8px;">"${this.escapeHtml(book.notes)}"</div>` : ''}
-            </div>
-        `).join('');
-
+        title.textContent = author;
         modal.classList.remove('hidden');
+
+        // Render read books immediately
+        const sortedRead = this.sortBooks(readBooks, 'year-desc');
+        readContent.innerHTML = sortedRead.length
+            ? sortedRead.map(book => `
+                <div class="author-book-item">
+                    <div class="author-book-title">${this.escapeHtml(book.title)}</div>
+                    <div class="author-book-year">Read in ${book.year}</div>
+                    ${book.notes ? `<div class="book-notes">"${this.escapeHtml(book.notes)}"</div>` : ''}
+                </div>`).join('')
+            : '<div class="author-book-empty">No books recorded yet.</div>';
+
+        // Show loading state for unread
+        unreadContent.innerHTML = '<div class="author-books-loading"><span class="loading-spinner"></span> Fetching from Open Library...</div>';
+
+        try {
+            const readTitles = new Set(readBooks.map(b => b.title.toLowerCase().trim()));
+            const query = encodeURIComponent(author);
+            const res = await fetch(`https://openlibrary.org/search.json?author=${query}&fields=title,first_publish_year,edition_count&limit=100&sort=editions`);
+            if (!res.ok) throw new Error('API error');
+            const data = await res.json();
+
+            const unread = (data.docs || [])
+                .filter(book => book.title && !readTitles.has(book.title.toLowerCase().trim()))
+                .sort((a, b) => (b.edition_count || 0) - (a.edition_count || 0))
+                .slice(0, 20);
+
+            unreadContent.innerHTML = unread.length
+                ? unread.map(book => `
+                    <div class="author-book-item author-book-item-unread">
+                        <div class="author-book-title">${this.escapeHtml(book.title)}</div>
+                        ${book.first_publish_year ? `<div class="author-book-year">First published ${book.first_publish_year}</div>` : ''}
+                    </div>`).join('')
+                : '<div class="author-book-empty">No additional books found on Open Library.</div>';
+        } catch (e) {
+            unreadContent.innerHTML = '<div class="author-book-empty">Could not load books — check your connection.</div>';
+        }
     }
 
     showYearStats() {
@@ -681,7 +708,7 @@ class ReadingLibrary {
             .sort((a, b) => b.count - a.count);
 
         content.innerHTML = authorStats.map(({ author, count }) => `
-            <div class="year-stat-item" onclick="library.filterByAuthor('${this.escapeHtml(author)}')" style="cursor:pointer;">
+            <div class="year-stat-item" data-author="${this.escapeHtml(author)}" onclick="library.closeModal('authorStatsModal'); library.showAuthorBooks(this.dataset.author)" style="cursor:pointer;">
                 <div class="year-stat-year" style="font-size:0.95rem;">${this.escapeHtml(author)}</div>
                 <div class="year-stat-count">${count} book${count > 1 ? 's' : ''}</div>
             </div>

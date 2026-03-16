@@ -459,7 +459,7 @@ body {
     color: var(--text-primary);
 }
 
-.year-stats-content, .author-books-content {
+.year-stats-content {
     padding: 20px;
 }
 
@@ -486,23 +486,112 @@ body {
     color: var(--text-primary);
 }
 
-.author-book-item {
+.modal-content-wide {
+    max-width: 860px;
+    width: 95vw;
+}
+
+.author-books-columns {
+    display: flex;
+    gap: 0;
+    min-height: 300px;
+}
+
+.author-col {
+    flex: 1;
+    min-width: 0;
+}
+
+.author-col-divider {
+    width: 1px;
+    background: var(--border);
+    margin: 0 4px;
+    flex-shrink: 0;
+}
+
+.author-col-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 14px 20px 10px;
+    border-bottom: 1px solid var(--border);
+}
+
+.author-col-read {
+    color: var(--success-color);
+}
+
+.author-col-unread {
+    color: var(--primary-color);
+}
+
+.author-books-content {
     padding: 12px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.author-book-item {
+    padding: 10px 12px;
     margin-bottom: 8px;
     background: var(--background);
     border-radius: 8px;
-    border-left: 3px solid var(--primary-color);
+    border-left: 3px solid var(--success-color);
+}
+
+.author-book-item-unread {
+    border-left-color: var(--primary-color);
 }
 
 .author-book-title {
     font-weight: 500;
     color: var(--text-primary);
-    margin-bottom: 4px;
+    margin-bottom: 3px;
+    font-size: 0.95rem;
 }
 
 .author-book-year {
     color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.book-notes {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-style: italic;
+    margin-top: 4px;
+}
+
+.author-books-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 20px;
+    color: var(--text-muted);
     font-size: 0.9rem;
+}
+
+.loading-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.author-book-empty {
+    padding: 20px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    text-align: center;
 }
 
 /* Settings Panel */
@@ -712,6 +801,18 @@ body {
 
     .modal-content {
         max-height: 90vh;
+    }
+}
+
+@media (max-width: 600px) {
+    .author-books-columns {
+        flex-direction: column;
+    }
+
+    .author-col-divider {
+        width: 100%;
+        height: 1px;
+        margin: 4px 0;
     }
 }
 

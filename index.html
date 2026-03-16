@@ -211,12 +211,22 @@
 
         <!-- Author Books Modal -->
         <div id="authorBooksModal" class="modal hidden">
-            <div class="modal-content">
+            <div class="modal-content modal-content-wide">
                 <div class="modal-header">
                     <h3 id="authorModalTitle">Books by Author</h3>
                     <button class="modal-close">&times;</button>
                 </div>
-                <div id="authorBooksContent" class="author-books-content"></div>
+                <div class="author-books-columns">
+                    <div class="author-col">
+                        <h4 class="author-col-title author-col-read">✅ Books I've Read</h4>
+                        <div id="authorBooksRead" class="author-books-content"></div>
+                    </div>
+                    <div class="author-col-divider"></div>
+                    <div class="author-col">
+                        <h4 class="author-col-title author-col-unread">📖 Books to Read</h4>
+                        <div id="authorBooksUnread" class="author-books-content"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
