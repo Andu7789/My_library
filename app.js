@@ -663,7 +663,7 @@ class ReadingLibrary {
 
             const unread = (data.docs || [])
                 .filter(book => book.title && !readTitles.has(book.title.toLowerCase().trim()))
-                .sort((a, b) => (b.edition_count || 0) - (a.edition_count || 0))
+                .sort((a, b) => (a.first_publish_year || 9999) - (b.first_publish_year || 9999))
                 .slice(0, 20);
 
             unreadContent.innerHTML = unread.length
