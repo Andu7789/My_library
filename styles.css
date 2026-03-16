@@ -505,6 +505,50 @@ body {
     font-size: 0.9rem;
 }
 
+.author-section-header {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    padding: 12px 0 6px;
+    margin-top: 4px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.author-section-header:first-child {
+    border-top: none;
+    padding-top: 0;
+}
+
+.unread-header {
+    color: var(--warning-color);
+}
+
+.author-book-item.unread {
+    border-left-color: var(--warning-color);
+    opacity: 0.85;
+}
+
+.fetch-status {
+    font-size: 0.7rem;
+    font-weight: 400;
+    color: var(--text-muted);
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.fetch-loading,
+.fetch-empty {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    padding: 10px 12px;
+    font-style: italic;
+}
+
 /* Settings Panel */
 .settings-panel {
     position: fixed;
