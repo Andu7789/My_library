@@ -534,7 +534,7 @@ class ReadingLibrary {
         booksList.innerHTML = filteredBooks.map(book => `
             <div class="book-card" data-id="${book.id}">
                 <div class="book-title">${this.escapeHtml(book.title)}</div>
-                <div class="book-author" onclick="library.showAuthorBooks('${this.escapeHtml(book.author)}')">
+                <div class="book-author" data-author="${this.escapeHtml(book.author)}" onclick="library.showAuthorBooks(this.dataset.author)">
                     ${this.escapeHtml(book.author)}
                 </div>
                 <div class="book-meta">
@@ -615,7 +615,7 @@ class ReadingLibrary {
             const regex = new RegExp(`(${this.escapeRegex(query)})`, 'gi');
             const highlighted = author.replace(regex, '<span class="suggestion-match">$1</span>');
             const bookCount = this.getBooksByAuthor(author).length;
-            return `<div class="suggestion-item" onclick="library.selectAuthorSuggestion('${this.escapeHtml(author)}')">
+            return `<div class="suggestion-item" data-author="${this.escapeHtml(author)}" onclick="library.selectAuthorSuggestion(this.dataset.author)">
                 ${highlighted} <span style="color: var(--text-muted)">(${bookCount} book${bookCount > 1 ? 's' : ''})</span>
             </div>`;
         }).join('');
@@ -739,7 +739,7 @@ class ReadingLibrary {
             .sort((a, b) => b.count - a.count);
 
         content.innerHTML = authorStats.map(({ author, count }) => `
-            <div class="year-stat-item" onclick="library.filterByAuthor('${this.escapeHtml(author)}')" style="cursor:pointer;">
+            <div class="year-stat-item" data-author="${this.escapeHtml(author)}" onclick="library.filterByAuthor(this.dataset.author)" style="cursor:pointer;">
                 <div class="year-stat-year" style="font-size:0.95rem;">${this.escapeHtml(author)}</div>
                 <div class="year-stat-count">${count} book${count > 1 ? 's' : ''}</div>
             </div>
