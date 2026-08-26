@@ -20,7 +20,7 @@
                 <button id="syncBtn" class="btn btn-primary">
                     <span class="sync-icon">↻</span> Sync
                 </button>
-                <span id="gistIdDisplay" style="font-size: 0.65rem; color: #64748b; margin-left: 10px; cursor: pointer;" title="Click to copy Gist ID"></span>
+                <span id="connectionDisplay" style="font-size: 0.65rem; color: #64748b; margin-left: 10px; cursor: pointer;" title="Click to open sync settings"></span>
             </div>
         </header>
 
@@ -43,19 +43,19 @@
         <!-- Settings Panel -->
         <div id="settingsPanel" class="settings-panel hidden">
             <div class="settings-content">
-                <h3>GitHub Gist Settings</h3>
+                <h3>Supabase Settings</h3>
                 <p class="settings-description">
-                    Connect to GitHub Gist to sync your library across devices.
-                    <a href="https://github.com/settings/tokens" target="_blank">Create a token</a>
-                    with 'gist' scope.
+                    Connect to Supabase to sync your library across devices.
+                    Find your Project URL and API key under
+                    <a href="https://supabase.com/dashboard" target="_blank">Project Settings &rarr; API</a>.
                 </p>
                 <div class="form-group">
-                    <label for="githubToken">GitHub Personal Access Token</label>
-                    <input type="password" id="githubToken" placeholder="ghp_...">
+                    <label for="supabaseUrl">Supabase Project URL</label>
+                    <input type="text" id="supabaseUrl" placeholder="https://xxxxx.supabase.co">
                 </div>
                 <div class="form-group">
-                    <label for="gistId">Gist ID (leave empty to create new)</label>
-                    <input type="text" id="gistId" placeholder="abc123...">
+                    <label for="supabaseKey">Supabase API Key (anon/public)</label>
+                    <input type="password" id="supabaseKey" placeholder="eyJ...">
                 </div>
                 <div id="connectionStatus" style="margin-bottom: 15px; padding: 10px; border-radius: 6px; background: #f8fafc; min-height: 20px; font-size: 0.9rem; line-height: 1.5;"></div>
                 <div class="settings-actions">
