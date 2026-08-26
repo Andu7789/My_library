@@ -129,8 +129,13 @@ class ReadingLibrary {
         };
     }
 
+    normalizeSupabaseUrl(url) {
+        // Accept either the bare project URL or one with a trailing /rest/v1(/) already on it
+        return url.trim().replace(/\/?(rest\/v1\/?)?\/?$/, '');
+    }
+
     getBooksUrl(query = '') {
-        return `${this.settings.supabaseUrl.replace(/\/$/, '')}/rest/v1/books${query}`;
+        return `${this.normalizeSupabaseUrl(this.settings.supabaseUrl)}/rest/v1/books${query}`;
     }
 
     toRemoteBook(book) {
@@ -660,7 +665,7 @@ class ReadingLibrary {
         statusDiv.innerHTML = '<span style="color: #3b82f6;">⏳ Testing connection...</span>';
 
         try {
-            const response = await fetch(`${url.replace(/\/$/, '')}/rest/v1/books?select=id`, {
+            const response = await fetch(`${this.normalizeSupabaseUrl(url)}/rest/v1/books?select=id`, {
                 headers: {
                     'apikey': key,
                     'Authorization': `Bearer ${key}`,
