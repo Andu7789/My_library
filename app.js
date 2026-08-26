@@ -2,10 +2,9 @@
 class ReadingLibrary {
     constructor() {
         this.books = [];
-        this.deletedBookIds = []; // Track deleted book IDs to prevent resurrection during merge
         this.settings = {
-            githubToken: '',
-            gistId: ''
+            supabaseUrl: '',
+            supabaseKey: ''
         };
         this.importData = null;
         this.syncInProgress = false;
@@ -21,14 +20,13 @@ class ReadingLibrary {
         this.setupEventListeners();
         this.updateUI();
         this.setCurrentYear();
-        this.updateGistIdDisplay();
+        this.updateConnectionDisplay();
     }
 
-    updateGistIdDisplay() {
-        const display = document.getElementById('gistIdDisplay');
-        if (this.settings.gistId) {
-            const shortId = this.settings.gistId.substring(0, 8);
-            display.textContent = `Gist: ${shortId}...`;
+    updateConnectionDisplay() {
+        const display = document.getElementById('connectionDisplay');
+        if (this.settings.supabaseUrl && this.settings.supabaseKey) {
+            display.textContent = 'Connected';
             display.style.display = 'inline';
         } else {
             display.textContent = 'Not synced';
@@ -53,25 +51,19 @@ class ReadingLibrary {
         if (saved) {
             this.books = JSON.parse(saved);
         }
-
-        const deletedIds = localStorage.getItem('deletedBookIds');
-        if (deletedIds) {
-            this.deletedBookIds = JSON.parse(deletedIds);
-        }
     }
 
     saveBooks() {
         localStorage.setItem('libraryBooks', JSON.stringify(this.books));
-        localStorage.setItem('deletedBookIds', JSON.stringify(this.deletedBookIds));
         this.updateUI();
     }
 
-    // GitHub Gist Integration
-    async syncWithGist(action = 'sync') {
-        const { githubToken, gistId } = this.settings;
+    // Supabase Integration
+    async syncWithSupabase(action = 'sync') {
+        const { supabaseUrl, supabaseKey } = this.settings;
 
-        if (!githubToken) {
-            this.showToast('Please configure GitHub token first', 'error');
+        if (!supabaseUrl || !supabaseKey) {
+            this.showToast('Please configure Supabase connection first', 'error');
             this.openSettings();
             return;
         }
@@ -90,15 +82,15 @@ class ReadingLibrary {
 
         try {
             if (action === 'push') {
-                // Force push local data to gist
-                await this.pushToGist();
+                // Force push local data to Supabase
+                await this.pushAllToSupabase();
                 this.showToast('Pushed to cloud successfully!', 'success');
             } else if (action === 'pull') {
-                // Force pull from gist (overwrites local)
-                await this.pullFromGist();
+                // Force pull from Supabase (overwrites local)
+                await this.pullFromSupabase();
                 this.showToast('Pulled from cloud successfully!', 'success');
             } else {
-                // Smart sync: merge local and remote data
+                // Smart sync: push local-only books, then refresh from the authoritative remote table
                 await this.smartSync();
                 this.showToast('Synced successfully!', 'success');
             }
@@ -107,12 +99,10 @@ class ReadingLibrary {
 
             // Show detailed error message to help with troubleshooting
             let errorMsg = error.message;
-            if (errorMsg.includes('403')) {
-                errorMsg = '403 Forbidden - Token may not have write permission. Try creating a new token at github.com/settings/tokens with "gist" scope.';
-            } else if (errorMsg.includes('401')) {
-                errorMsg = '401 Unauthorized - Invalid token. Check your GitHub token.';
+            if (errorMsg.includes('401') || errorMsg.includes('403')) {
+                errorMsg = 'Unauthorized - Check your Supabase URL and API key.';
             } else if (errorMsg.includes('404')) {
-                errorMsg = '404 Not Found - Gist ID not found. Check your Gist ID.';
+                errorMsg = '404 Not Found - Check your Supabase URL, or make sure the "books" table exists.';
             }
 
             this.showToast('Sync failed: ' + errorMsg, 'error');
@@ -125,217 +115,133 @@ class ReadingLibrary {
             if (this.pendingSync) {
                 this.pendingSync = false;
                 console.log('Executing pending sync request');
-                await this.syncWithGist(action);
+                await this.syncWithSupabase(action);
             }
         }
+    }
+
+    getSupabaseHeaders(extra = {}) {
+        return {
+            'apikey': this.settings.supabaseKey,
+            'Authorization': `Bearer ${this.settings.supabaseKey}`,
+            'Content-Type': 'application/json',
+            ...extra
+        };
+    }
+
+    getBooksUrl(query = '') {
+        return `${this.settings.supabaseUrl.replace(/\/$/, '')}/rest/v1/books${query}`;
+    }
+
+    toRemoteBook(book) {
+        return {
+            id: book.id,
+            title: book.title,
+            author: book.author,
+            year: book.year,
+            notes: book.notes || '',
+            added_date: book.addedDate
+        };
+    }
+
+    fromRemoteBook(row) {
+        return {
+            id: row.id,
+            title: row.title,
+            author: row.author,
+            year: row.year,
+            notes: row.notes || '',
+            addedDate: row.added_date
+        };
     }
 
     async smartSync() {
-        const { gistId } = this.settings;
-        console.log(`[SYNC DEBUG] Starting smartSync. GistID: ${gistId ? 'exists' : 'missing'}, Local books: ${this.books.length}, Local deleted: ${this.deletedBookIds.length}`);
+        console.log(`[SYNC DEBUG] Starting smartSync. Local books: ${this.books.length}`);
 
-        if (!gistId) {
-            // No gist exists, create one with current data
-            console.log(`[SYNC DEBUG] No Gist ID found, creating new Gist...`);
-            await this.pushToGist();
-            return;
+        const remoteBooks = await this.fetchSupabaseBooks();
+        const remoteIds = new Set(remoteBooks.map(b => b.id));
+
+        // Push any books that only exist locally (e.g. added while offline)
+        const localOnly = this.books.filter(b => !remoteIds.has(b.id));
+        console.log(`[SYNC DEBUG] Remote=${remoteBooks.length} books, local-only to push=${localOnly.length}`);
+
+        for (const book of localOnly) {
+            await this.insertSupabaseBook(book);
         }
 
-        // Pull remote data first
-        console.log(`[SYNC DEBUG] Fetching remote data from Gist...`);
-        const remoteData = await this.fetchGistData();
-
-        // Ensure remoteData has the correct structure
-        const remoteBooks = remoteData.books || [];
-        const remoteDeletedIds = remoteData.deletedBookIds || [];
-
-        console.log(`[SYNC DEBUG] Smart Sync v2.0: Local=${this.books.length} books, Remote=${remoteBooks.length} books`);
-        console.log(`[SYNC DEBUG] Deleted IDs: Local=${this.deletedBookIds.length}, Remote=${remoteDeletedIds.length}`);
-
-        // Merge deleted IDs from both devices
-        const mergedDeletedIds = [...new Set([...this.deletedBookIds, ...remoteDeletedIds])];
-        console.log(`[SYNC DEBUG] Merged deleted IDs: ${mergedDeletedIds.length}`);
-        this.deletedBookIds = mergedDeletedIds;
-
-        // Merge local and remote books
-        const mergedBooks = this.mergeBooks(this.books, remoteBooks);
-        console.log(`[SYNC DEBUG] Smart Sync v2.0: Merged=${mergedBooks.length} books`);
-
-        // Update local storage with merged data
-        this.books = mergedBooks;
+        // Supabase is the source of truth; refresh local cache from it
+        this.books = localOnly.length > 0 ? await this.fetchSupabaseBooks() : remoteBooks;
         this.saveBooks();
         this.renderBooks();
-        console.log(`[SYNC DEBUG] Saved merged books to localStorage`);
-
-        // Push merged data back to gist
-        console.log(`[SYNC DEBUG] Pushing merged data back to Gist...`);
-        await this.pushToGist();
-        console.log(`[SYNC DEBUG] Sync complete!`);
+        console.log(`[SYNC DEBUG] Sync complete! Total books: ${this.books.length}`);
     }
 
-    async fetchGistData() {
-        console.log(`[SYNC DEBUG] Fetching Gist ID: ${this.settings.gistId}`);
-        const response = await fetch(`https://api.github.com/gists/${this.settings.gistId}`, {
-            headers: {
-                'Authorization': `token ${this.settings.githubToken}`,
-                'Accept': 'application/vnd.github.v3+json'
-            }
+    async fetchSupabaseBooks() {
+        console.log(`[SYNC DEBUG] Fetching books from Supabase...`);
+        const response = await fetch(this.getBooksUrl('?select=*&order=added_date.desc'), {
+            headers: this.getSupabaseHeaders()
         });
 
         if (!response.ok) {
-            console.error(`[SYNC DEBUG] Failed to fetch Gist. Status: ${response.status} ${response.statusText}`);
+            console.error(`[SYNC DEBUG] Failed to fetch from Supabase. Status: ${response.status} ${response.statusText}`);
             const errorText = await response.text();
             console.error(`[SYNC DEBUG] Error details:`, errorText);
-            throw new Error(`Failed to fetch from Gist: ${response.status} ${response.statusText}`);
+            throw new Error(`Failed to fetch from Supabase: ${response.status} ${response.statusText}`);
         }
 
-        const gist = await response.json();
-        const content = gist.files['library.json']?.content;
-        console.log(`[SYNC DEBUG] Fetched Gist successfully. Has library.json: ${!!content}`);
-
-        if (!content) {
-            return { books: [], deletedBookIds: [] };
-        }
-
-        const data = JSON.parse(content);
-
-        // Handle old format (just array of books) and new format (object with books and deletedBookIds)
-        if (Array.isArray(data)) {
-            console.log(`[SYNC DEBUG] Old format detected (array), converting...`);
-            return { books: data, deletedBookIds: [] };
-        } else {
-            console.log(`[SYNC DEBUG] New format: ${data.books?.length || 0} books, ${data.deletedBookIds?.length || 0} deleted IDs`);
-            return {
-                books: data.books || [],
-                deletedBookIds: data.deletedBookIds || []
-            };
-        }
+        const rows = await response.json();
+        console.log(`[SYNC DEBUG] Fetched ${rows.length} books from Supabase`);
+        return rows.map(row => this.fromRemoteBook(row));
     }
 
-    mergeBooks(localBooks, remoteBooks) {
-        // Create a map of all books by a composite key (title + author + year)
-        const bookMap = new Map();
-
-        // Helper to create unique key
-        const getKey = (book) =>
-            `${book.title.toLowerCase()}|${book.author.toLowerCase()}|${book.year}`;
-
-        // Add all remote books first (excluding deleted ones)
-        remoteBooks.forEach(book => {
-            // Skip books that have been deleted locally
-            if (!this.deletedBookIds.includes(book.id)) {
-                bookMap.set(getKey(book), book);
-            } else {
-                console.log(`[MERGE DEBUG] Skipping deleted book from remote: ${book.title}`);
-            }
-        });
-
-        // Add or update with local books (local takes precedence for same book)
-        localBooks.forEach(book => {
-            // Skip books that have been deleted (either locally or remotely)
-            if (this.deletedBookIds.includes(book.id)) {
-                console.log(`[MERGE DEBUG] Skipping deleted book from local: ${book.title}`);
-                return;
-            }
-
-            const key = getKey(book);
-            const existing = bookMap.get(key);
-
-            // If book exists, keep the one with more recent addedDate
-            if (existing) {
-                const localDate = new Date(book.addedDate || 0);
-                const remoteDate = new Date(existing.addedDate || 0);
-
-                if (localDate >= remoteDate) {
-                    bookMap.set(key, book);
-                }
-            } else {
-                bookMap.set(key, book);
-            }
-        });
-
-        return Array.from(bookMap.values());
+    async pullFromSupabase() {
+        this.books = await this.fetchSupabaseBooks();
+        this.saveBooks();
+        this.renderBooks();
     }
 
-    async pullFromGist() {
-        const response = await fetch(`https://api.github.com/gists/${this.settings.gistId}`, {
-            headers: {
-                'Authorization': `token ${this.settings.githubToken}`,
-                'Accept': 'application/vnd.github.v3+json'
-            }
+    async pushAllToSupabase() {
+        if (this.books.length === 0) return;
+        console.log(`[SYNC DEBUG] Pushing ${this.books.length} books to Supabase...`);
+
+        const response = await fetch(this.getBooksUrl(), {
+            method: 'POST',
+            headers: this.getSupabaseHeaders({ 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
+            body: JSON.stringify(this.books.map(b => this.toRemoteBook(b)))
         });
 
         if (!response.ok) {
-            throw new Error('Failed to fetch from Gist');
-        }
-
-        const gist = await response.json();
-        const content = gist.files['library.json']?.content;
-
-        if (content) {
-            const data = JSON.parse(content);
-
-            // Handle old format (just array) and new format (object with books and deletedBookIds)
-            if (Array.isArray(data)) {
-                this.books = data;
-                this.deletedBookIds = [];
-            } else {
-                this.books = data.books || [];
-                this.deletedBookIds = data.deletedBookIds || [];
-            }
-
-            this.saveBooks();
-            this.renderBooks();
-        }
-    }
-
-    async pushToGist() {
-        console.log(`[SYNC DEBUG] Pushing ${this.books.length} books and ${this.deletedBookIds.length} deleted IDs to Gist...`);
-        const gistData = {
-            description: 'My Reading Library Data',
-            public: false,
-            files: {
-                'library.json': {
-                    content: JSON.stringify({
-                        books: this.books,
-                        deletedBookIds: this.deletedBookIds
-                    }, null, 2)
-                }
-            }
-        };
-
-        const url = this.settings.gistId
-            ? `https://api.github.com/gists/${this.settings.gistId}`
-            : 'https://api.github.com/gists';
-
-        const method = this.settings.gistId ? 'PATCH' : 'POST';
-        console.log(`[SYNC DEBUG] Using ${method} to ${url}`);
-
-        const response = await fetch(url, {
-            method: method,
-            headers: {
-                'Authorization': `token ${this.settings.githubToken}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(gistData)
-        });
-
-        if (!response.ok) {
-            console.error(`[SYNC DEBUG] Failed to push to Gist. Status: ${response.status} ${response.statusText}`);
+            console.error(`[SYNC DEBUG] Failed to push to Supabase. Status: ${response.status} ${response.statusText}`);
             const errorText = await response.text();
             console.error(`[SYNC DEBUG] Error details:`, errorText);
-            throw new Error(`Failed to push to Gist: ${response.status} ${response.statusText}`);
+            throw new Error(`Failed to push to Supabase: ${response.status} ${response.statusText}`);
         }
+    }
 
-        const gist = await response.json();
-        console.log(`[SYNC DEBUG] Successfully pushed to Gist. ID: ${gist.id}`);
+    async insertSupabaseBook(book) {
+        const response = await fetch(this.getBooksUrl(), {
+            method: 'POST',
+            headers: this.getSupabaseHeaders({ 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
+            body: JSON.stringify(this.toRemoteBook(book))
+        });
 
-        if (!this.settings.gistId) {
-            this.settings.gistId = gist.id;
-            this.saveSettings();
-            console.log(`[SYNC DEBUG] New Gist created with ID: ${gist.id}`);
-            this.showToast(`Gist created! ID: ${gist.id}`, 'success');
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[SYNC DEBUG] Failed to save book to Supabase:`, errorText);
+            throw new Error(`Failed to save book to Supabase: ${response.status} ${response.statusText}`);
+        }
+    }
+
+    async deleteSupabaseBook(id) {
+        const response = await fetch(this.getBooksUrl(`?id=eq.${encodeURIComponent(id)}`), {
+            method: 'DELETE',
+            headers: this.getSupabaseHeaders()
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[SYNC DEBUG] Failed to delete book from Supabase:`, errorText);
+            throw new Error(`Failed to delete book from Supabase: ${response.status} ${response.statusText}`);
         }
     }
 
@@ -355,12 +261,17 @@ class ReadingLibrary {
         this.saveBooks();
         console.log(`[SYNC DEBUG] Book added to local storage. Total books: ${this.books.length}`);
 
-        // Auto-sync if configured (use smart sync to avoid overwriting)
-        if (this.settings.githubToken && this.settings.gistId) {
-            console.log(`[SYNC DEBUG] Token and Gist ID found, triggering auto-sync...`);
-            await this.syncWithGist('sync');
+        // Auto-sync if configured
+        if (this.settings.supabaseUrl && this.settings.supabaseKey) {
+            console.log(`[SYNC DEBUG] Supabase configured, pushing new book...`);
+            try {
+                await this.insertSupabaseBook(book);
+            } catch (error) {
+                console.error('[SYNC DEBUG] Failed to sync new book:', error);
+                this.showToast('Saved locally, but failed to sync: ' + error.message, 'error');
+            }
         } else {
-            console.log(`[SYNC DEBUG] No auto-sync: Token=${!!this.settings.githubToken}, GistID=${!!this.settings.gistId}`);
+            console.log(`[SYNC DEBUG] No auto-sync: Supabase not configured`);
         }
 
         return book;
@@ -369,20 +280,18 @@ class ReadingLibrary {
     async deleteBook(id) {
         console.log(`[DELETE DEBUG] Deleting book with id: ${id}. Books before: ${this.books.length}`);
 
-        // Track this deletion to prevent the book from being restored during merge
-        if (!this.deletedBookIds.includes(id)) {
-            this.deletedBookIds.push(id);
-            console.log(`[DELETE DEBUG] Added ${id} to deleted list. Total deleted: ${this.deletedBookIds.length}`);
-        }
-
         this.books = this.books.filter(book => book.id !== id);
         console.log(`[DELETE DEBUG] Books after filter: ${this.books.length}`);
         this.saveBooks();
 
-        // Now use smart sync - the merge will filter out deleted books
-        if (this.settings.githubToken && this.settings.gistId) {
-            console.log(`[DELETE DEBUG] Syncing deletion with smart merge...`);
-            await this.syncWithGist('sync');
+        if (this.settings.supabaseUrl && this.settings.supabaseKey) {
+            console.log(`[DELETE DEBUG] Syncing deletion to Supabase...`);
+            try {
+                await this.deleteSupabaseBook(id);
+            } catch (error) {
+                console.error('[DELETE DEBUG] Failed to sync deletion:', error);
+                this.showToast('Deleted locally, but failed to sync: ' + error.message, 'error');
+            }
         }
     }
 
@@ -729,8 +638,8 @@ class ReadingLibrary {
 
     // Settings
     openSettings() {
-        document.getElementById('githubToken').value = this.settings.githubToken;
-        document.getElementById('gistId').value = this.settings.gistId;
+        document.getElementById('supabaseUrl').value = this.settings.supabaseUrl;
+        document.getElementById('supabaseKey').value = this.settings.supabaseKey;
         document.getElementById('settingsPanel').classList.remove('hidden');
     }
 
@@ -738,58 +647,36 @@ class ReadingLibrary {
         document.getElementById('settingsPanel').classList.add('hidden');
     }
 
-    async testGitHubConnection() {
+    async testSupabaseConnection() {
         const statusDiv = document.getElementById('connectionStatus');
-        const token = document.getElementById('githubToken').value.trim();
-        const gistId = document.getElementById('gistId').value.trim();
+        const url = document.getElementById('supabaseUrl').value.trim();
+        const key = document.getElementById('supabaseKey').value.trim();
 
-        if (!token) {
-            statusDiv.innerHTML = '<span style="color: #ef4444;">❌ Please enter a GitHub token</span>';
+        if (!url || !key) {
+            statusDiv.innerHTML = '<span style="color: #ef4444;">❌ Please enter both Supabase URL and API key</span>';
             return;
         }
 
         statusDiv.innerHTML = '<span style="color: #3b82f6;">⏳ Testing connection...</span>';
 
         try {
-            // Test 1: Check if token is valid
-            const userResponse = await fetch('https://api.github.com/user', {
+            const response = await fetch(`${url.replace(/\/$/, '')}/rest/v1/books?select=id`, {
                 headers: {
-                    'Authorization': `token ${token}`,
-                    'Accept': 'application/vnd.github.v3+json'
+                    'apikey': key,
+                    'Authorization': `Bearer ${key}`,
+                    'Prefer': 'count=exact',
+                    'Range': '0-0'
                 }
             });
 
-            if (!userResponse.ok) {
-                statusDiv.innerHTML = '<span style="color: #ef4444;">❌ Invalid token or no internet connection</span>';
+            if (!response.ok) {
+                statusDiv.innerHTML = `<span style="color: #ef4444;">❌ Connection failed: ${response.status} ${response.statusText}. Check your URL/key, and make sure the "books" table exists.</span>`;
                 return;
             }
 
-            const userData = await userResponse.json();
-            console.log('[TEST] GitHub user:', userData.login);
-
-            // Test 2: If Gist ID provided, try to fetch it
-            if (gistId) {
-                const gistResponse = await fetch(`https://api.github.com/gists/${gistId}`, {
-                    headers: {
-                        'Authorization': `token ${token}`,
-                        'Accept': 'application/vnd.github.v3+json'
-                    }
-                });
-
-                if (!gistResponse.ok) {
-                    statusDiv.innerHTML = `<span style="color: #ef4444;">❌ Token valid but cannot access Gist ID: ${gistId}</span>`;
-                    return;
-                }
-
-                const gistData = await gistResponse.json();
-                const bookCount = gistData.files['library.json']?.content ?
-                    JSON.parse(gistData.files['library.json'].content).books?.length ||
-                    JSON.parse(gistData.files['library.json'].content).length : 0;
-
-                statusDiv.innerHTML = `<span style="color: #10b981;">✅ Connected as ${userData.login}. Gist has ${bookCount} books.</span>`;
-            } else {
-                statusDiv.innerHTML = `<span style="color: #10b981;">✅ Token valid. Connected as ${userData.login}.</span>`;
-            }
+            const range = response.headers.get('content-range');
+            const total = range ? range.split('/')[1] : '?';
+            statusDiv.innerHTML = `<span style="color: #10b981;">✅ Connected! Table has ${total} books.</span>`;
 
         } catch (error) {
             console.error('[TEST] Connection error:', error);
@@ -798,15 +685,15 @@ class ReadingLibrary {
     }
 
     saveSettingsForm() {
-        this.settings.githubToken = document.getElementById('githubToken').value.trim();
-        this.settings.gistId = document.getElementById('gistId').value.trim();
+        this.settings.supabaseUrl = document.getElementById('supabaseUrl').value.trim();
+        this.settings.supabaseKey = document.getElementById('supabaseKey').value.trim();
         this.saveSettings();
-        this.updateGistIdDisplay();
+        this.updateConnectionDisplay();
         this.closeSettings();
 
-        if (this.settings.githubToken) {
+        if (this.settings.supabaseUrl && this.settings.supabaseKey) {
             // Use smart sync to merge data when connecting
-            this.syncWithGist('sync');
+            this.syncWithSupabase('sync');
         }
     }
 
@@ -961,8 +848,8 @@ class ReadingLibrary {
         this.saveBooks();
 
         // Now sync once after all imports
-        if (this.settings.githubToken && this.settings.gistId) {
-            await this.syncWithGist('sync');
+        if (this.settings.supabaseUrl && this.settings.supabaseKey) {
+            await this.syncWithSupabase('sync');
         }
 
         this.closeImport();
@@ -1056,11 +943,11 @@ class ReadingLibrary {
 
         // Sync button
         document.getElementById('syncBtn').addEventListener('click', () => {
-            if (!this.settings.githubToken) {
+            if (!this.settings.supabaseUrl || !this.settings.supabaseKey) {
                 this.openSettings();
             } else {
                 // Use smart sync by default (merges local and remote)
-                this.syncWithGist('sync');
+                this.syncWithSupabase('sync');
             }
         });
 
@@ -1074,21 +961,14 @@ class ReadingLibrary {
             this.openSettings();
         });
 
-        // Gist ID display - click to copy
-        document.getElementById('gistIdDisplay').addEventListener('click', () => {
-            if (this.settings.gistId) {
-                navigator.clipboard.writeText(this.settings.gistId).then(() => {
-                    this.showToast(`Gist ID copied: ${this.settings.gistId}`, 'success');
-                }).catch(() => {
-                    // Fallback if clipboard API fails
-                    prompt('Copy this Gist ID:', this.settings.gistId);
-                });
-            }
+        // Connection status display - click to open settings
+        document.getElementById('connectionDisplay').addEventListener('click', () => {
+            this.openSettings();
         });
 
         // Settings
         document.getElementById('testConnection').addEventListener('click', async () => {
-            await this.testGitHubConnection();
+            await this.testSupabaseConnection();
         });
 
         document.getElementById('saveSettings').addEventListener('click', () => {

@@ -1,13 +1,13 @@
 # 📚 My Reading Library
 
-A beautiful, mobile-friendly web application to track the books you've read. Features smart autocomplete to prevent re-reading books, author organization, yearly statistics, and cross-device sync via GitHub Gist.
+A beautiful, mobile-friendly web application to track the books you've read. Features smart autocomplete to prevent re-reading books, author organization, yearly statistics, and cross-device sync via Supabase.
 
 ## ✨ Features
 
 - **Smart Duplicate Detection**: Start typing a book title and get warned if you've already read it
 - **Author Management**: View all books by a specific author with one click
 - **Yearly Statistics**: Track how many books you read each year
-- **Cross-Platform Sync**: Save your library to GitHub Gist and access it from any device
+- **Cross-Platform Sync**: Save your library to Supabase and access it from any device
 - **Excel Import**: Import your existing book collection from XLS/XLSX files
 - **Beautiful UI**: Modern, dark-themed interface that works on desktop and mobile
 - **Search & Filter**: Find books quickly with search and year filters
@@ -24,30 +24,43 @@ A beautiful, mobile-friendly web application to track the books you've read. Fea
 
 Your data will be saved in your browser's local storage.
 
-### Option 2: With GitHub Gist Sync (Recommended)
+### Option 2: With Supabase Sync (Recommended)
 
 For cross-device synchronization:
 
-1. **Create a GitHub Personal Access Token**:
-   - Go to https://github.com/settings/tokens
-   - Click "Generate new token (classic)"
-   - Give it a name like "Reading Library"
-   - Check the `gist` scope only
-   - Click "Generate token"
-   - **Copy the token** (you won't see it again!)
+1. **Create a Supabase Project**:
+   - Go to https://supabase.com/dashboard and create a free project
+   - Once it's ready, open **Project Settings → API** and note your **Project URL** and **anon/public API key**
 
-2. **Configure the App**:
+2. **Create the `books` table**:
+   - Open the **SQL Editor** in your Supabase project
+   - Run:
+     ```sql
+     create table if not exists books (
+       id text primary key,
+       title text not null,
+       author text not null,
+       year integer not null,
+       notes text default '',
+       added_date timestamptz default now()
+     );
+
+     alter table books enable row level security;
+
+     create policy "Allow anonymous access" on books
+       for all using (true) with check (true);
+     ```
+
+3. **Configure the App**:
    - Open the app in your browser
-   - Click the "Sync" button
-   - Paste your GitHub token
-   - Leave "Gist ID" empty for first time (it will be created automatically)
+   - Click the "Sync" button (or the ⚙️ settings button)
+   - Paste your Supabase Project URL and API key
    - Click "Save & Sync"
 
-3. **On Other Devices**:
+4. **On Other Devices**:
    - Open the app
    - Click "Sync"
-   - Enter the same GitHub token
-   - Enter the Gist ID (shown in the success message after first sync)
+   - Enter the same Supabase Project URL and API key
    - Click "Save & Sync" to pull your data
 
 ## 📥 Importing Your Existing Data
@@ -99,7 +112,7 @@ If you have an Excel file with your books:
 ### Managing Your Library
 
 - **Delete**: Click the delete button on any book card
-- **Sync**: Click the sync button to save/load from GitHub Gist
+- **Sync**: Click the sync button to save/load from Supabase
 - **Stats**: Click the "This Year" stat card to see yearly reading statistics
 
 ## 🎨 Design Features
@@ -115,8 +128,8 @@ If you have an Excel file with your books:
 ### Data Storage
 
 - **Local**: Uses browser localStorage for instant access
-- **Cloud**: Optional GitHub Gist integration for backup and sync
-- **Format**: JSON structure with books array
+- **Cloud**: Optional Supabase integration for backup and sync
+- **Format**: A `books` table in Postgres, one row per book
 
 ### Data Structure
 
@@ -141,17 +154,17 @@ If you have an Excel file with your books:
 ### Dependencies
 
 - **SheetJS (xlsx)**: For Excel import functionality
-- **GitHub API**: For Gist synchronization
+- **Supabase REST API**: For database synchronization
 - **Google Fonts (Inter)**: For typography
 
 All dependencies are loaded via CDN - no installation required.
 
 ## 🔒 Privacy & Security
 
-- Your GitHub token is stored only in your browser's localStorage
-- Data is never sent to any server except GitHub Gist (if you enable sync)
+- Your Supabase API key is stored only in your browser's localStorage
+- Data is never sent to any server except your own Supabase project (if you enable sync)
 - You can use the app completely offline with local storage only
-- GitHub Gist is created as **private** by default
+- The `anon` API key is safe to use client-side, but relies on the Row Level Security policy you set on the `books` table — the setup SQL above grants full read/write to anyone holding that key, matching a personal single-user setup. Don't share your API key or make the repo public with the key hardcoded in it.
 
 ## 📱 Mobile Installation (PWA)
 
@@ -191,8 +204,8 @@ Edit the CSS variables in `styles.css`:
 ## 🐛 Troubleshooting
 
 **Books not syncing?**
-- Check your GitHub token is valid
-- Verify the Gist ID is correct
+- Check your Supabase Project URL and API key are correct
+- Verify the `books` table exists (see setup SQL above)
 - Check your internet connection
 
 **Import not working?**
