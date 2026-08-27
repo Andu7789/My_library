@@ -1,10 +1,17 @@
 // Reading Library App
+
+// Public Supabase project URL and anon/public key. The anon key is safe to
+// ship in client-side code - it has no privileges beyond what row-level
+// security on the "books" table allows.
+const DEFAULT_SUPABASE_URL = 'https://rmooksnngqyzqraeicvr.supabase.co';
+const DEFAULT_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJtb29rc25uZ3F5enFyYWVpY3ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3OTU2NDgsImV4cCI6MjA4NTM3MTY0OH0.N4COImAWUpLz7yS4OJM4Tgsew-On6s_5ee0_F6pw3-c';
+
 class ReadingLibrary {
     constructor() {
         this.books = [];
         this.settings = {
-            supabaseUrl: '',
-            supabaseKey: ''
+            supabaseUrl: DEFAULT_SUPABASE_URL,
+            supabaseKey: DEFAULT_SUPABASE_KEY
         };
         this.importData = null;
         this.syncInProgress = false;
@@ -37,8 +44,23 @@ class ReadingLibrary {
     // Data Management
     loadSettings() {
         const saved = localStorage.getItem('librarySettings');
-        if (saved) {
-            this.settings = JSON.parse(saved);
+        if (!saved) return;
+
+        let parsed;
+        try {
+            parsed = JSON.parse(saved);
+        } catch (e) {
+            return;
+        }
+
+        // Only trust saved values that are actual non-empty strings, so
+        // leftover data from the old GitHub Gist sync (or any other stale
+        // shape) can't wipe out the built-in defaults.
+        if (typeof parsed.supabaseUrl === 'string' && parsed.supabaseUrl.trim()) {
+            this.settings.supabaseUrl = parsed.supabaseUrl.trim();
+        }
+        if (typeof parsed.supabaseKey === 'string' && parsed.supabaseKey.trim()) {
+            this.settings.supabaseKey = parsed.supabaseKey.trim();
         }
     }
 
