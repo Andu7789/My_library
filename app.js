@@ -1063,3 +1063,12 @@ class ReadingLibrary {
 
 // Initialize the app
 const library = new ReadingLibrary();
+
+// Register service worker for offline support and installability (PWA)
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js').catch((err) => {
+            console.warn('Service worker registration failed:', err);
+        });
+    });
+}
